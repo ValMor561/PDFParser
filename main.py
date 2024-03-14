@@ -3,7 +3,8 @@ import camelot
 import fitz
 import re
 import argparse
-
+import glob
+import os
 #Чтение страниц
 class ConversionBackend(object):
     def convert(self, pdf_path, png_path):
@@ -19,13 +20,13 @@ def ParseTable(table):
     i = 0
     while i != m:
         tmp = {}
-        case = table.data[i][1]
+        case = table.data[i][1].replace("\n", " ")
         match = re.search(r'Case Number(.*)', case)
         if match:
             case_value = match.group(1)
             tmp["Case Number"] = case_value
 
-        properties = table.data[i + 1][6]
+        properties = table.data[i + 1][6].replace("\n", " ")
         match = re.search(r'Property (.*)', properties)
         if match:
             propeties_value = match.group(1)
@@ -38,7 +39,7 @@ def ParseTable(table):
         else:
             tmp["Property"] = ["нет адреса"]
 
-        cost = table.data[i][9]
+        cost = table.data[i][9].replace("\n", " ")
         match = re.search(r'Cost & Tax Bid(.*)', cost)
         if match:
             cost_value = match.group(1)
@@ -63,25 +64,30 @@ def AddToExel(data, outfile):
 
     df_combined.to_excel(outfile, index=False)
 
-def main(input_filename, output_filename):
-    tables = camelot.read_pdf(input_filename, 
-                            backend=ConversionBackend(), 
-                            strip_text='\n', 
-                            line_scale=40, 
-                            pages='4',
-                            copy_text=['h'],)
-    
-    count_tables = tables.n
-    for i in range(0, count_tables):
-        datas = ParseTable(tables[i])
-        print(datas)
-        for data in datas:
-            AddToExel(data, output_filename)
+def main():
+    files = os.listdir(f"pdf")
+    pdf_files = []
+    for file in files:
+        if ".pdf" in file:
+            pdf_files.append(f"pdf/{file}")
+
+    for pdf_file in pdf_files:
+        tables = camelot.read_pdf(pdf_file, 
+                                backend=ConversionBackend(), 
+                                line_scale=40, 
+                                pages='all',
+                                copy_text=['h'],)
+        
+        count_tables = tables.n
+        for i in range(0, count_tables):
+            datas = ParseTable(tables[i])
+            print(datas)
+            for data in datas:
+                filename = os.path.splitext(os.path.basename(pdf_file))[0]
+                if not os.path.exists('result'):
+                    os.makedirs('result')
+                AddToExel(data, f"result/{filename}.xlsx")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("file", help="Input PDF file")
-    parser.add_argument("outfile", help="Output Excel file")
-    args = parser.parse_args()
-    main(args.file, args.outfile)
+    main()
