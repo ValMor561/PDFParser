@@ -2,9 +2,9 @@ import pandas as pd
 import camelot
 import fitz
 import re
-import argparse
-import glob
 import os
+import shutil
+
 #Чтение страниц
 class ConversionBackend(object):
     def convert(self, pdf_path, png_path):
@@ -64,6 +64,22 @@ def AddToExel(data, outfile):
 
     df_combined.to_excel(outfile, index=False)
 
+def CheckPDF(pdf_file):
+    tables = camelot.read_pdf(pdf_file, 
+                                backend=ConversionBackend(), 
+                                line_scale=40, 
+                                pages='4',
+                                copy_text=['h'],)
+        
+    count_tables = tables.n
+    for i in range(0, count_tables):
+        datas = ParseTable(tables[i])
+        for data in datas:
+            filename = os.path.splitext(os.path.basename(pdf_file))[0]
+            if not os.path.exists('result'):
+                os.makedirs('result')
+            AddToExel(data, f"result/{filename}.xlsx")
+
 def main():
     files = os.listdir(f"pdf")
     pdf_files = []
@@ -72,22 +88,13 @@ def main():
             pdf_files.append(f"pdf/{file}")
 
     for pdf_file in pdf_files:
-        tables = camelot.read_pdf(pdf_file, 
-                                backend=ConversionBackend(), 
-                                line_scale=40, 
-                                pages='all',
-                                copy_text=['h'],)
-        
-        count_tables = tables.n
-        for i in range(0, count_tables):
-            datas = ParseTable(tables[i])
-            print(datas)
-            for data in datas:
-                filename = os.path.splitext(os.path.basename(pdf_file))[0]
-                if not os.path.exists('result'):
-                    os.makedirs('result')
-                AddToExel(data, f"result/{filename}.xlsx")
-
+        CheckPDF(pdf_file)
+        if not os.path.exists('checked'):
+            os.makedirs('checked')
+        filename = os.path.splitext(os.path.basename(pdf_file))[0]
+        shutil.move(pdf_file, f"checked/{filename}.pdf")
+        print(f"[+]Файл {filename}.pdf был проверен\n")
+    print("[+] Все файлы проверены")
 
 if __name__ == "__main__":
     main()
